@@ -1,0 +1,1089 @@
+######################################world map###########################################################################
+library(sp)
+library(rworldxtra)
+library(rworldmap)
+library(readr)
+data2018<- read_csv("finaldata.csv")
+sPDF <- joinCountryData2Map(data2018,
+                            joinCode = "NAME",
+                            nameJoinColumn = "country")
+dF <- sPDF@data
+#map the data with no legend
+mapParams <- mapCountryData( sPDF,nameColumnToPlot="Life Ladder", addLegend='FALSE')
+#add a modified legend using the same initial parameters as mapCountryData
+do.call(addMapLegend, c( mapParams, legendLabels="all", legendWidth=0.5))
+
+#creating a user defined colour palette
+op <- palette(c('red','orange','pink','yellow'))
+#find quartile breaks
+cutVector <- quantile(sPDF@data[["Life Ladder"]],na.rm=TRUE)
+#classify the data to a factor
+sPDF@data[["ladder degree"]] <- cut( sPDF@data[["Life Ladder"]],cutVector,include.lowest=TRUE )
+#rename the categories
+levels(sPDF@data[["ladder degree"]]) <- c('low happy score','medium happy score','high happy score','very high happy score')
+#mapping
+par(mai=c(0.1,0.1,0.2,0),xaxs="i",yaxs="i")
+mapCountryData( sPDF, nameColumnToPlot="ladder degree",catMethod='categorical', mapTitle='ladder degree of the country', colourPalette='palette',oceanCol = 'lightblue',missingCountryCol='white')
+################################################Europe####################################################################
+library(ggplot2)
+library(grid)
+library(rworldmap)
+library(stringr)
+#data preprocessing
+mydata<-Happiness_scores_2018
+
+mydata$country<-str_trim(mydata$country, "both")
+mydata$country<- gsub("  ", " ",mydata$country)
+mydata$country <- gsub("[[:space:]]", " ", mydata$country)
+as_tibble(mydata)
+write.csv(mydata,"finaldata.csv")
+# Member States of the European Union
+europeanUnion <- c("Austria","Belgium","Bulgaria","Croatia","Cyprus",
+                   "Czech Rep.","Denmark","Estonia","Finland","France",
+                   "Germany","Greece","Hungary","Ireland","Italy","Latvia",
+                   "Lithuania","Luxembourg","Malta","Netherlands","Poland",
+                   "Portugal","Romania","Slovakia","Slovenia","Spain",
+                   "Sweden","United Kingdom","Croatia","Czech Republic")
+europe<-filter(mydata,country %in% europeanUnion)
+
+# Get the world map
+worldMap <- getMap()
+
+
+
+# Select only the index of states member of the E.U.
+indEU <- which(worldMap$NAME%in%europeanUnion)
+# Extract longitude and latitude border's coordinates of members states of E.U. 
+europeCoords <- lapply(indEU, function(i){
+  df <- data.frame(worldMap@polygons[[i]]@Polygons[[1]]@coords)
+  df$region =as.character(worldMap$NAME[i])
+  colnames(df) <- list("long", "lat", "region")
+  return(df)
+})
+
+europeCoords <- do.call("rbind", europeCoords)
+
+# Add some data for each member
+value <- europe$`Life Ladder`
+europeanUnionTable <- data.frame(country = europe$country, value = europe$`Life Ladder`)
+europeCoords$value <- europeanUnionTable$value[match(europeCoords$region,europeanUnionTable$country)]
+
+# Plot the map
+P <- ggplot() + geom_polygon(data = europeCoords, aes(x = long, y = lat, group = region, fill = value),
+                             colour = "black", size = 0.1) +
+  coord_map(xlim = c(-13, 35),  ylim = c(32, 71))
+
+P <- P + scale_fill_gradient(name = "Happy", low = "#FF0000FF", high = "#FFFF00FF", na.value = "grey50")
+
+
+P <- P + theme(#panel.grid.minor = element_line(colour = NA), panel.grid.minor = element_line(colour = NA),
+  #panel.background = element_rect(fill = NA, colour = NA),
+  axis.text.x = element_blank(),
+  axis.text.y = element_blank(), axis.ticks.x = element_blank(),
+  axis.ticks.y = element_blank(), axis.title = element_blank(),
+  #rect = element_blank(),
+  plot.margin = unit(0 * c(-1.5, -1.5, -1.5, -1.5), "lines"))
+
+#####################World Happiness in 2018######################################
+library(plyr)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(caTools)
+library(ggplot2)
+install.packages("ggthemes")
+library(ggthemes)
+library(reshape2)
+library(data.table)
+library(tidyr)
+install.packages("corrgram")
+library(corrgram)       
+library(corrplot)
+install.packages("formattable")
+library(formattable)
+library(cowplot)
+library(ggpubr)
+install.packages("plot3D")
+library(plot3D)
+
+# World happiness report 2018
+Happiness <- read.csv("Happiness scores 2018.csv")
+
+str(Happiness)
+
+# Creating a new column for continents
+
+Happiness$Continent <- NA
+
+Happiness$Continent[which(Happiness$Country %in% c("Israel", "United Arab Emirates", "Singapore", "Thailand", "Taiwan Province of China",
+                                                   "Qatar", "Saudi Arabia", "Kuwait", "Bahrain", "Malaysia", "Uzbekistan", "Japan",
+                                                   "South Korea", "Turkmenistan", "Kazakhstan", "Turkey", "Hong Kong S.A.R., China", "Philippines",
+                                                   "Jordan", "China", "Pakistan", "Indonesia", "Azerbaijan", "Lebanon", "Vietnam",
+                                                   "Tajikistan", "Bhutan", "Kyrgyzstan", "Nepal", "Mongolia", "Palestinian Territories",
+                                                   "Iran", "Bangladesh", "Myanmar", "Iraq", "Sri Lanka", "Armenia", "India", "Georgia",
+                                                   "Cambodia", "Afghanistan", "Yemen", "Syria"))] <- "Asia"
+Happiness$Continent[which(Happiness$Country %in% c("Norway", "Denmark", "Iceland", "Switzerland", "Finland",
+                                                   "Netherlands", "Sweden", "Austria", "Ireland", "Germany",
+                                                   "Belgium", "Luxembourg", "United Kingdom", "Czech Republic",
+                                                   "Malta", "France", "Spain", "Slovakia", "Poland", "Italy",
+                                                   "Russia", "Lithuania", "Latvia", "Moldova", "Romania",
+                                                   "Slovenia", "North Cyprus", "Cyprus", "Estonia", "Belarus",
+                                                   "Serbia", "Hungary", "Croatia", "Kosovo", "Montenegro",
+                                                   "Greece", "Portugal", "Bosnia and Herzegovina", "Macedonia",
+                                                   "Bulgaria", "Albania", "Ukraine"))] <- "Europe"
+Happiness$Continent[which(Happiness$Country %in% c("Canada", "Costa Rica", "United States", "Mexico",  
+                                                   "Panama","Trinidad and Tobago", "El Salvador", "Belize", "Guatemala",
+                                                   "Jamaica", "Nicaragua", "Dominican Republic", "Honduras",
+                                                   "Haiti"))] <- "North America"
+Happiness$Continent[which(Happiness$Country %in% c("Chile", "Brazil", "Argentina", "Uruguay",
+                                                   "Colombia", "Ecuador", "Bolivia", "Peru",
+                                                   "Paraguay", "Venezuela"))] <- "South America"
+Happiness$Continent[which(Happiness$Country %in% c("New Zealand", "Australia"))] <- "Australia"
+Happiness$Continent[which(is.na(Happiness$Continent))] <- "Africa"
+
+
+# Moving the continent column's position in the dataset to the second column
+
+Happiness <- Happiness %>% select(Country,Continent, everything())
+
+# Changing Continent column to factor
+
+Happiness$Continent <- as.factor(Happiness$Continent)
+
+str(Happiness)
+
+
+########## Correlation between variables
+
+# Finding the correlation between numerical columns
+Num.cols <- sapply(Happiness, is.numeric)
+Cor.data <- cor(Happiness[, Num.cols])
+
+corrplot(Cor.data, method = 'color')  
+
+# Create a correlation plot
+newdatacor = cor(Happiness[c(3:9)])
+corrplot(newdatacor, method = "number")
+
+###Comparing different continents regarding their happiness variables
+Happiness.Continent <-aggregate(Happiness[, 3:9], list(Happiness$Continent), mean)
+
+#Correlation plot for each continent
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "Africa"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for Africa")
+#Correlation between “Happiness Score” and the other variables in Africa:
+#Economy > Family > Life.Expectancy > Dystopia.Residual > Freedom
+#There is no correlation between happiness score and trust.
+#There is an inverse correlation between happiness score and generosity.
+
+
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "Asia"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for Asia")
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "Europe"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for Europe")
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "North America"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for North America")
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "South America"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for South America")
+
+
+####### Happiness score for each continent
+
+gg1 <- ggplot(Happiness,
+              aes(x=Continent,
+                  y=Happiness.scores,
+                  color=Continent))+
+  geom_point() + theme_bw() +
+  theme(axis.title = element_text(family = "Helvetica", size = (8)))
+
+gg2 <- ggplot(Happiness , aes(x = Continent, y = Happiness.scores)) +
+  geom_boxplot(aes(fill=Continent)) + theme_bw() +
+  theme(axis.title = element_text(family = "Helvetica", size = (8)))
+
+gg3 <- ggplot(Happiness,aes(x=Continent,y=Happiness.scores))+
+  geom_violin(aes(fill=Continent),alpha=0.7)+ theme_bw() +
+  theme(axis.title = element_text(family = "Helvetica", size = (8)))
+
+# Compute descriptive statistics by groups
+stable <- desc_statby(Happiness, measure.var = "Happiness.scores",
+                      grps = "Continent")
+stable <- stable[, c("Continent","mean","median")]
+names(stable) <- c("Continent", "Mean of happiness score","Median of happiness score")
+# Summary table plot
+stable.p <- ggtexttable(stable,rows = NULL, 
+                        theme = ttheme("classic"))
+
+
+ggarrange(gg1, gg2, ncol = 1, nrow = 2)
+ggarrange(gg3, stable.p, ncol = 1, nrow = 2)
+
+
+###Scatter plot with regression line
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Helathy.life.expectancy, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = GDP, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Freedom.to.make.choices, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Social.support, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Generosity, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Perceptions.of.corruption, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+
+####
+#The following is just another way of seeing happiness score distribution on different continents
+#when taking the correlation of happiness score with different variables into account.
+#::::::::::::::::::::::::::::Generosity::::::::::::::::::::::::::::::
+sp <- ggscatter(Happiness, x = "Generosity", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Generosity, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Generosity); xmax <- max(Happiness$Generosity)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+#
+#::::::::::::::::::::::::::::Social support::::::::::::::::::::::::::::::
+sp <- ggscatter(Happiness, x = "Social.support", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Social.support, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Social.support); xmax <- max(Happiness$Social.support)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+#GDP
+sp <- ggscatter(Happiness, x = "GDP", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$GDP, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$GDP); xmax <- max(Happiness$GDP)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+##
+sp <- ggscatter(Happiness, x = "GDP", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$GDP, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$GDP); xmax <- max(Happiness$GDP)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+##Freedom.to.make.choices
+sp <- ggscatter(Happiness, x = "Freedom.to.make.choices", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Freedom.to.make.choices, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Freedom.to.make.choices); xmax <- max(Happiness$Freedom.to.make.choices)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+sp <- ggscatter(Happiness, x = "Helathy.life.expectancy", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Helathy.life.expectancy, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Helathy.life.expectancy); xmax <- max(Happiness$Helathy.life.expectancy)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+
+
+
+##Perceptions.of.corruption
+sp <- ggscatter(Happiness, x = "Perceptions.of.corruption", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Perceptions.of.corruption, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Perceptions.of.corruption); xmax <- max(Happiness$Perceptions.of.corruption)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+sp <- ggscatter(Happiness, x = "Helathy.life.expectancy", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Helathy.life.expectancy, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Helathy.life.expectancy); xmax <- max(Happiness$Helathy.life.expectancy)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+
+
+#prediction
+# Splitting the dataset into the Training set and Test set
+# install.packages('caTools')
+library(caTools)
+set.seed(123)
+dataset <- Happiness[3:9]
+split = sample.split(dataset$Happiness.scores, SplitRatio = 0.8)
+training_set = subset(dataset, split == TRUE)
+test_set = subset(dataset, split == FALSE)
+
+# Fitting Decision Tree Regression to the dataset
+library(rpart)
+regressor_dt = rpart(formula = Happiness.scores ~ .,
+                     data = dataset,
+                     control = rpart.control(minsplit = 10))
+
+# Plotting the tree
+library(rpart.plot)
+prp(regressor_dt)
+
+
+########################world happiness in 2015################################
+library(plyr)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(caTools)
+library(ggplot2)
+install.packages("ggthemes")
+library(ggthemes)
+library(reshape2)
+library(data.table)
+library(tidyr)
+install.packages("corrgram")
+library(corrgram)       
+library(corrplot)
+install.packages("formattable")
+library(formattable)
+library(cowplot)
+library(ggpubr)
+install.packages("plot3D")
+library(plot3D)
+
+# World happiness report 2018
+Happiness <- read.csv("Happiness scores 2015.csv")
+
+str(Happiness)
+
+# Creating a new column for continents
+
+Happiness$Continent <- NA
+
+Happiness$Continent[which(Happiness$Country %in% c("Israel", "United Arab Emirates", "Singapore", "Thailand", "Taiwan Province of China",
+                                                   "Qatar", "Saudi Arabia", "Kuwait", "Bahrain", "Malaysia", "Uzbekistan", "Japan",
+                                                   "South Korea", "Turkmenistan", "Kazakhstan", "Turkey", "Hong Kong S.A.R., China", "Philippines",
+                                                   "Jordan", "China", "Pakistan", "Indonesia", "Azerbaijan", "Lebanon", "Vietnam",
+                                                   "Tajikistan", "Bhutan", "Kyrgyzstan", "Nepal", "Mongolia", "Palestinian Territories",
+                                                   "Iran", "Bangladesh", "Myanmar", "Iraq", "Sri Lanka", "Armenia", "India", "Georgia",
+                                                   "Cambodia", "Afghanistan", "Yemen", "Syria"))] <- "Asia"
+Happiness$Continent[which(Happiness$Country %in% c("Norway", "Denmark", "Iceland", "Switzerland", "Finland",
+                                                   "Netherlands", "Sweden", "Austria", "Ireland", "Germany",
+                                                   "Belgium", "Luxembourg", "United Kingdom", "Czech Republic",
+                                                   "Malta", "France", "Spain", "Slovakia", "Poland", "Italy",
+                                                   "Russia", "Lithuania", "Latvia", "Moldova", "Romania",
+                                                   "Slovenia", "North Cyprus", "Cyprus", "Estonia", "Belarus",
+                                                   "Serbia", "Hungary", "Croatia", "Kosovo", "Montenegro",
+                                                   "Greece", "Portugal", "Bosnia and Herzegovina", "Macedonia",
+                                                   "Bulgaria", "Albania", "Ukraine"))] <- "Europe"
+Happiness$Continent[which(Happiness$Country %in% c("Canada", "Costa Rica", "United States", "Mexico",  
+                                                   "Panama","Trinidad and Tobago", "El Salvador", "Belize", "Guatemala",
+                                                   "Jamaica", "Nicaragua", "Dominican Republic", "Honduras",
+                                                   "Haiti"))] <- "North America"
+Happiness$Continent[which(Happiness$Country %in% c("Chile", "Brazil", "Argentina", "Uruguay",
+                                                   "Colombia", "Ecuador", "Bolivia", "Peru",
+                                                   "Paraguay", "Venezuela"))] <- "South America"
+Happiness$Continent[which(Happiness$Country %in% c("New Zealand", "Australia"))] <- "Australia"
+Happiness$Continent[which(is.na(Happiness$Continent))] <- "Africa"
+
+
+# Moving the continent column's position in the dataset to the second column
+
+Happiness <- Happiness %>% select(Country,Continent, everything())
+
+# Changing Continent column to factor
+
+Happiness$Continent <- as.factor(Happiness$Continent)
+
+str(Happiness)
+
+
+########## Correlation between variables
+
+# Finding the correlation between numerical columns
+Num.cols <- sapply(Happiness, is.numeric)
+Cor.data <- cor(Happiness[, Num.cols])
+
+corrplot(Cor.data, method = 'color')  
+
+# Create a correlation plot
+newdatacor = cor(Happiness[c(3:9)])
+corrplot(newdatacor, method = "number")
+
+###Comparing different continents regarding their happiness variables
+Happiness.Continent <-aggregate(Happiness[, 3:9], list(Happiness$Continent), mean)
+
+#Correlation plot for each continent
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "Africa"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for Africa")
+#Correlation between “Happiness Score” and the other variables in Africa:
+#Economy > Family > Life.Expectancy > Dystopia.Residual > Freedom
+#There is no correlation between happiness score and trust.
+#There is an inverse correlation between happiness score and generosity.
+
+
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "Asia"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for Asia")
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "Europe"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for Europe")
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "North America"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for North America")
+corrgram(Happiness %>% select(-1) %>% filter(Continent == "South America"), order=TRUE,
+         upper.panel=panel.cor, main="Happiness Matrix for South America")
+
+
+####### Happiness score for each continent
+
+gg1 <- ggplot(Happiness,
+              aes(x=Continent,
+                  y=Happiness.scores,
+                  color=Continent))+
+  geom_point() + theme_bw() +
+  theme(axis.title = element_text(family = "Helvetica", size = (8)))
+
+gg2 <- ggplot(Happiness , aes(x = Continent, y = Happiness.scores)) +
+  geom_boxplot(aes(fill=Continent)) + theme_bw() +
+  theme(axis.title = element_text(family = "Helvetica", size = (8)))
+
+gg3 <- ggplot(Happiness,aes(x=Continent,y=Happiness.scores))+
+  geom_violin(aes(fill=Continent),alpha=0.7)+ theme_bw() +
+  theme(axis.title = element_text(family = "Helvetica", size = (8)))
+
+# Compute descriptive statistics by groups
+stable <- desc_statby(Happiness, measure.var = "Happiness.scores",
+                      grps = "Continent")
+stable <- stable[, c("Continent","mean","median")]
+names(stable) <- c("Continent", "Mean of happiness score","Median of happiness score")
+# Summary table plot
+stable.p <- ggtexttable(stable,rows = NULL, 
+                        theme = ttheme("classic"))
+
+
+ggarrange(gg1, gg2, ncol = 1, nrow = 2)
+ggarrange(gg3, stable.p, ncol = 1, nrow = 2)
+
+
+###Scatter plot with regression line
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Helathy.life.expectancy, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = GDP, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Freedom.to.make.choices, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Social.support, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Generosity, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+
+#
+ggplot(subset(Happiness, Happiness$Continent != "Australia"), aes(x = Perceptions.of.corruption, y = Happiness.scores)) + 
+  geom_point(aes(color=Continent), size = 3, alpha = 0.8) +  
+  geom_smooth(aes(color = Continent, fill = Continent), 
+              method = "lm", fullrange = TRUE) +
+  facet_wrap(~Continent) +
+  theme_bw() + labs(title = "Scatter plot with regression line")
+
+####
+#The following is just another way of seeing happiness score distribution on different continents
+#when taking the correlation of happiness score with different variables into account.
+#::::::::::::::::::::::::::::Generosity::::::::::::::::::::::::::::::
+sp <- ggscatter(Happiness, x = "Generosity", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Generosity, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Generosity); xmax <- max(Happiness$Generosity)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+#
+#::::::::::::::::::::::::::::Social support::::::::::::::::::::::::::::::
+sp <- ggscatter(Happiness, x = "Social.support", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Social.support, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Social.support); xmax <- max(Happiness$Social.support)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+#GDP
+sp <- ggscatter(Happiness, x = "GDP", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$GDP, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$GDP); xmax <- max(Happiness$GDP)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+##
+sp <- ggscatter(Happiness, x = "GDP", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$GDP, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$GDP); xmax <- max(Happiness$GDP)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+##Freedom.to.make.choices
+sp <- ggscatter(Happiness, x = "Freedom.to.make.choices", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Freedom.to.make.choices, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Freedom.to.make.choices); xmax <- max(Happiness$Freedom.to.make.choices)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+sp <- ggscatter(Happiness, x = "Helathy.life.expectancy", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Helathy.life.expectancy, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Helathy.life.expectancy); xmax <- max(Happiness$Helathy.life.expectancy)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+
+
+
+##Perceptions.of.corruption
+sp <- ggscatter(Happiness, x = "Perceptions.of.corruption", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Perceptions.of.corruption, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Perceptions.of.corruption); xmax <- max(Happiness$Perceptions.of.corruption)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+sp <- ggscatter(Happiness, x = "Helathy.life.expectancy", y = "Happiness.scores",
+                color = "Continent", palette = "jco",
+                size = 3, alpha = 0.6)
+# Create box plots of x/y variables
+# Box plot of the x variable
+xbp <- ggboxplot(Happiness$Helathy.life.expectancy, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(Happiness$Happiness.scores, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+xmin <- min(Happiness$Helathy.life.expectancy); xmax <- max(Happiness$Helathy.life.expectancy)
+ymin <- min(Happiness$Happiness.scores); ymax <- max(Happiness$Happiness.scores)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                    xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                    ymin = ymin, ymax = ymax)
+
+
+
+#prediction
+# Splitting the dataset into the Training set and Test set
+# install.packages('caTools')
+library(caTools)
+set.seed(123)
+dataset <- Happiness[3:9]
+split = sample.split(dataset$Happiness.scores, SplitRatio = 0.8)
+training_set = subset(dataset, split == TRUE)
+test_set = subset(dataset, split == FALSE)
+
+# Fitting Decision Tree Regression to the dataset
+library(rpart)
+regressor_dt = rpart(formula = Happiness.scores ~ .,
+                     data = dataset,
+                     control = rpart.control(minsplit = 10))
+
+# Predicting a new result with Decision Tree Regression
+y_pred_dt = predict(regressor_dt, newdata = test_set)
+
+Pred_Actual_dt <- as.data.frame(cbind(Prediction = y_pred_dt, Actual = test_set$Happiness.Score))
+
+
+gg.dt <- ggplot(Pred_Actual_dt, aes(Actual, Prediction )) +
+  geom_point() + theme_bw() + geom_abline() +
+  labs(title = "Decision Tree Regression", x = "Actual happiness score",
+       y = "Predicted happiness score") +
+  theme(plot.title = element_text(family = "Helvetica", face = "bold", size = (15)), 
+        axis.title = element_text(family = "Helvetica", size = (10)))
+gg.dt
+
+# Plotting the tree
+library(rpart.plot)
+prp(regressor_dt)
+
+###################################Europe happiness######################
+Europe_happiness18<-Happiness %>% select(-3) %>% filter(Continent == "Europe")
+Europe_happiness15<-Happiness15 %>% select(-3) %>% filter(Continent == "Europe")
+
+write.csv(Europe_happiness18,file="C:/Users/freedom1106/Europe_happiness18.csv")
+write.csv(Europe_happiness15,file="C:/Users/freedom1106/Europe_happiness15.csv")
+
+#prediction
+# Splitting the dataset into the Training set and Test set
+# install.packages('caTools')
+library(caTools)
+dataset1 <- Europe_happiness18[3:9]
+split = sample.split(dataset1$Happiness.scores, SplitRatio = 0.8)
+training_set = subset(dataset1, split == TRUE)
+test_set = subset(dataset1, split == FALSE)
+
+# Fitting Decision Tree Regression to the dataset
+library(rpart)
+regressor_dt = rpart(formula = Happiness.scores ~ .,
+                     data = dataset1,
+                     control = rpart.control(minsplit = 10))
+
+# Plotting the tree
+library(rpart.plot)
+prp(regressor_dt)
+
+#prediction
+# Splitting the dataset into the Training set and Test set
+# install.packages('caTools')
+library(caTools)
+dataset2 <- Europe_happiness15[3:9]
+split = sample.split(dataset2$Happiness.scores, SplitRatio = 0.8)
+training_set = subset(dataset2, split == TRUE)
+test_set = subset(dataset2, split == FALSE)
+
+# Fitting Decision Tree Regression to the dataset
+library(rpart)
+regressor_dt = rpart(formula = Happiness.scores ~ .,
+                     data = dataset2,
+                     control = rpart.control(minsplit = 10))
+
+# Plotting the tree
+library(rpart.plot)
+prp(regressor_dt)
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+  "description": "Happiness in Belgium.",
+  "data": {
+    "values": [
+     {"Happiness scores": "scores", "b":6.937 ,"year":2015},
+      {"Happiness scores": "scores", "b": 6.891,"year":2016},
+      {"Happiness scores": "scores", "b": 6.927,"year":2017},
+      {"Happiness scores": "scores", "b": 6.923,"year":2018}
+
+      
+    ]
+  },
+ "mark": "rect",
+  "encoding": {
+      "x": {
+          "field": "year",
+          "type": "ordinal"
+         
+      },
+      "y": {
+          "field": "Happiness scores",
+          "type": "nominal"
+         
+      },
+      "color": {
+          "field": "b",
+          "aggregate": "max",
+          "type": "quantitative",
+          "legend": {
+              "title": null
+          }
+      }
+  }
+}
+
+
+####################################belgium#####################################
+
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+  "description": "Happiness in Belgium.",
+  "data": {
+    "values": [
+     
+      {"domain": "GDP", "b": 1.30782,"year":2015},
+      {"domain": "GDP", "b": 1.464,"year":2016},
+      {"domain": "GDP", "b": 1.324,"year":2017},
+      {"domain": "GDP", "b": 1.356,"year":2018},
+      {"domain": "support", "b": 1.28566,"year":2015},
+      {"domain": "support", "b": 1.462,"year":2016},
+      {"domain": "support", "b": 1.483,"year":2017},
+      {"domain": "support", "b": 1.504,"year":2018},
+      {"domain": "healthy", "b": 0.89667,"year":2015},
+      {"domain": "healthy", "b": 0.818,"year":2016},
+      {"domain": "healthy", "b": 0.894,"year":2017},
+      {"domain": "healthy", "b": 0.986,"year":2018},
+      {"domain": "freedom", "b": 0.5845,"year":2015},
+      {"domain": "freedom", "b": 0.54,"year":2016},
+      {"domain": "freedom", "b": 0.583,"year":2017},
+      {"domain": "freedom", "b": 0.473,"year":2018},
+      {"domain": "geneosity", "b": 0.2225,"year":2015},
+      {"domain": "geneosity", "b": 0.232,"year":2016},
+      {"domain": "geneosity", "b": 0.188,"year":2017},
+      {"domain": "geneosity", "b": 0.16,"year":2018},
+      {"domain": "corruption", "b": 0.2254,"year":2015},
+      {"domain": "corruption", "b": 0.251,"year":2016},
+      {"domain": "corruption", "b": 0.24,"year":2017},
+      {"domain": "corruption", "b": 0.21,"year":2018}
+      
+    ]
+  },
+ "mark": {
+    "type": "line",
+    "point": true
+  },
+  "encoding": {
+    "x": { "field": "year", "type": "ordinal"},
+    "y": {"field": "b", "type": "quantitative"},
+    "color": {"field": "domain", "type": "nominal"}
+  }
+}
